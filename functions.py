@@ -18,6 +18,7 @@ from io import StringIO
 import warnings
 import matplotlib.pyplot as plt
 from mplsoccer import VerticalPitch
+from mplsoccer import Pitch
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -432,6 +433,41 @@ def print_top_players_xT_dribbles(df_xT_dribbles, players_quantity):
     print('*' * 50)
     print('')
 
+
+def find_top_players_recoveries(df):
+    # Filtrar apenas os desarmes e interceptações bem-sucedidos
+    successful_recoveries = df[df['result_id'] == 1]
+
+    # Contar o número de desarmes e interceptações por jogador
+    recovery_count = successful_recoveries.groupby('player').size()
+
+    # Ordenar os jogadores pelo número de desarmes e interceptações em ordem decrescente
+    sorted_recovery_count = recovery_count.sort_values(ascending=False)
+
+    # Descobrir o jogador com mais desarmes e interceptações
+    top_player_recoveries = sorted_recovery_count.idxmax()
+    top_recovery_count = sorted_recovery_count.max()
+
+    return sorted_recovery_count, top_player_recoveries, top_recovery_count
+
+
+def print_top_players_recoveries(sorted_recovery_count, top_player_recoveries, top_recovery_count, num_players=10):
+    # Imprimir o número de desarmes e interceptações de cada jogador
+    print(f'NÚMERO DE DESARMES E INTERCEPTAÇÕES DE CADA JOGADOR:')
+    print('')
+    print(f"O jogador com mais desarmes e interceptações é {top_player_recoveries} com {top_recovery_count} recuperações.")
+    print('')
+    count = 0
+    for player, recovery_count in sorted_recovery_count.items():
+        if count >= num_players:
+            break
+        print(f"{player}: {recovery_count} recuperações")
+        count += 1
+    print('')
+    print('*' * 50)
+    print('')
+
+
 def combine_and_print_top_xT(df_xT_pass, df_xT_dribbles, top_n=10):
     # Combinar os valores de xT de passes e dribles com base nos jogadores
     combined_df = pd.merge(df_xT_pass, df_xT_dribbles, on='player', how='outer', suffixes=('_pass', '_dribble'))
@@ -716,8 +752,8 @@ def plot_recoveries(dfRecoveries, nomes_brasileirao_sem_rep, jogador, title):
                   marker='X', color='#0E82B5', edgecolor='#219ED6', ax=axs['pitch'], s=150, lw=1.5, zorder=3, alpha=1)
     
     # Título
-    fig.suptitle(title, fontsize=22, fontweight='bold', color='white')
-    axs['pitch'].set_title(f'Recuperações de {jogador}', fontsize=18, color='white', pad=10)
+    fig.suptitle(title, fontsize=18, fontweight='bold', color='white')
+    axs['pitch'].set_title(f'Desarmes/interceptações do {jogador}', fontsize=18, color='white', pad=10)
 
     # Adicionar texto abaixo do subplot
     axs['pitch'].text(0.05, -0.02, f'{num_recoveries} recuperações ({recoveries_per_90:.2f} por 90 min)', fontsize=14, color='#ADD8E6', ha='left', va='bottom', fontweight='bold', transform=axs['pitch'].transAxes)
@@ -726,7 +762,7 @@ def plot_recoveries(dfRecoveries, nomes_brasileirao_sem_rep, jogador, title):
     note_text = "@Vasco_Analytics | Dados: Opta via WhoScored"
     note_text_2 = "Recuperação: desarme ou interceptação bem-sucedida"
     fig.text(0.02, 0.01, note_text, fontsize=13, color='gray', ha='left', va='center', weight='bold')
-    fig.text(0.02, -0.02, note_text_2, fontsize=11, color='gray', ha='left', va='center')
+    #fig.text(0.02, -0.02, note_text_2, fontsize=11, color='gray', ha='left', va='center')
 
     # Alterar a cor de fundo da figura e subplots para um tom de cinza escuro
     fig.patch.set_facecolor('#222222')  # Cor de fundo da figura
@@ -736,38 +772,214 @@ def plot_recoveries(dfRecoveries, nomes_brasileirao_sem_rep, jogador, title):
 
     plt.show()
 
-# Exemplo de uso:
-# plot_recoveries(dfRecoveries, nomes_brasileirao_sem_rep, 'Lucas Piton', 'Recuperações de Lucas Piton no Brasileirão 2024')
 
-def find_top_players_recoveries(df):
-    # Filtrar apenas os desarmes e interceptações bem-sucedidos
-    successful_recoveries = df[df['result_id'] == 1]
+def plot_2_recoveries(dfRecoveries, nomes_brasileirao_sem_rep, jogador1, jogador2, title):
+    # Filtrar apenas as recuperações bem-sucedidas dos jogadores
+    successful_recoveriesJ1 = dfRecoveries[(dfRecoveries['player'] == jogador1) & (dfRecoveries['result_id'] == 1)]
+    successful_recoveriesJ2 = dfRecoveries[(dfRecoveries['player'] == jogador2) & (dfRecoveries['result_id'] == 1)]
+    
+    # Obter os minutos jogados dos jogadores
+    mins_jogadosJ1 = nomes_brasileirao_sem_rep[nomes_brasileirao_sem_rep['Jogador'] == jogador1]['Mins'].values[0]
+    mins_jogadosJ2 = nomes_brasileirao_sem_rep[nomes_brasileirao_sem_rep['Jogador'] == jogador2]['Mins'].values[0]
+    
+    # Calcular recuperações por 90 minutos
+    num_recoveriesJ1 = successful_recoveriesJ1.shape[0]
+    recoveries_per_90J1 = (num_recoveriesJ1 / mins_jogadosJ1) * 90
+    
+    num_recoveriesJ2 = successful_recoveriesJ2.shape[0]
+    recoveries_per_90J2 = (num_recoveriesJ2 / mins_jogadosJ2) * 90
 
-    # Contar o número de desarmes e interceptações por jogador
-    recovery_count = successful_recoveries.groupby('player').size()
+    # Criar o campo
+    pitch = VerticalPitch(positional=False, pitch_type='uefa', pitch_color='#222222', line_color='white', line_zorder=2)
+    fig, axs = pitch.grid(ncols=2, axis=False, figheight=10, endnote_height=0, endnote_space=0, title_height=0.01, grid_height=0.75)
+    
+    # Gráfico do jogador 1
+    pitch.scatter(successful_recoveriesJ1['end_x'], successful_recoveriesJ1['end_y'], 
+                  marker='X', color='#0E82B5', edgecolor='#219ED6', ax=axs['pitch'][0], s=150, lw=1.5, zorder=3, alpha=1)
+    
+    # Gráfico do jogador 2
+    pitch.scatter(successful_recoveriesJ2['end_x'], successful_recoveriesJ2['end_y'], 
+                  marker='X', color='#0E82B5', edgecolor='#219ED6', ax=axs['pitch'][1], s=150, lw=1.5, zorder=3, alpha=1)
+    
+    # Títulos e textos
+    fig.suptitle(title, fontsize=20, fontweight='bold', color='white')
+    axs['pitch'][0].set_title(f'Desarmes/Interceptações do {jogador1}', fontsize=16, color='white', pad=1)
+    axs['pitch'][1].set_title(f'Desarmes/Interceptações do {jogador2}', fontsize=16, color='white', pad=1)
 
-    # Ordenar os jogadores pelo número de desarmes e interceptações em ordem decrescente
-    sorted_recovery_count = recovery_count.sort_values(ascending=False)
+    axs['pitch'][0].text(0.05, -0.02, f'{num_recoveriesJ1} recuperações ({recoveries_per_90J1:.2f} por 90 min)', fontsize=14, color='#ADD8E6', ha='left', va='bottom', fontweight='bold', transform=axs['pitch'][0].transAxes)
+    axs['pitch'][1].text(0.05, -0.02, f'{num_recoveriesJ2} recuperações ({recoveries_per_90J2:.2f} por 90 min)', fontsize=14, color='#ADD8E6', ha='left', va='bottom', fontweight='bold', transform=axs['pitch'][1].transAxes)
 
-    # Descobrir o jogador com mais desarmes e interceptações
-    top_player_recoveries = sorted_recovery_count.idxmax()
-    top_recovery_count = sorted_recovery_count.max()
+    # Nota de rodapé
+    note_text = "@Vasco_Analytics | Dados: Opta via WhoScored"
+    fig.text(0.02, 0.01, note_text, fontsize=16, color='#ababab', ha='left', va='center', weight='300')
 
-    return sorted_recovery_count, top_player_recoveries, top_recovery_count
+    # Alterar a cor de fundo da figura e subplots para um tom de cinza escuro
+    fig.patch.set_facecolor('#222222')  # Cor de fundo da figura
+
+    # Salvar a figura
+    fig.savefig('Mapa de desarmes interceptações.png', dpi=300, bbox_inches='tight', facecolor='#222222')
+
+    plt.show()
+
+def plot_progressive_passes(dfPass, result_df, jogador, title):
+    # Dados do jogador
+    num_passesCJ = dfPass[(dfPass['player'] == jogador) & (dfPass['result_id'] == 1)].shape[0]
+    num_passesJ = dfPass[(dfPass['player'] == jogador)].shape[0]
+    num_passesPJ = len(dfPass[(dfPass['player'] == jogador) & (dfPass['progressive_pass']) & (dfPass['result_id'] == 1)])
+    taxa_acertoJ = round(((num_passesCJ / num_passesJ) * 100), 1)
+    dfPassJ = dfPass[(dfPass['player'] == jogador) & (dfPass['result_id'] == 1) & (~dfPass['progressive_pass'])]
+    dfPassJP = dfPass[(dfPass['player'] == jogador) & (dfPass['progressive_pass']) & (dfPass['result_id'] == 1)]    
+    num_passesP90J = result_df.loc[result_df['Jogador'] == jogador, 'Passes Progressivos por 90 Minutos'].values[0]
+    
+    # Criar o campo
+    pitch = VerticalPitch(positional=False, pitch_type='uefa', pitch_color='#222222', line_color='white', line_zorder=2)
+    fig, axs = pitch.grid(ncols=1, axis=False, figheight=10, endnote_height=0, endnote_space=0, title_height=0.01, grid_height=0.75)
+    
+    # Gráfico com passes progressivos
+    pitch.lines(dfPassJP['start_x'], dfPassJP['start_y'], dfPassJP['end_x'], dfPassJP['end_y'], color='#97c1e7',
+                comet=True, transparent=True, alpha_start=0.2, alpha_end=0.8, zorder=2, ax=axs['pitch'])
+    pitch.scatter(dfPassJP['end_x'], dfPassJP['end_y'], color='black', edgecolor='#97c1e7', ax=axs['pitch'], s=50, lw=1, zorder=2)
+    
+    # Título
+    fig.suptitle(title, fontsize=22, fontweight='bold', color='white')
+    axs['pitch'].set_title(f'Passes progressivos do {jogador}', fontsize=18, color='white', pad=10)
+
+    # Adicionar texto abaixo do subplot
+    axs['pitch'].text(0.05, -0.02, f'Passes: {num_passesCJ}/{num_passesJ} ({taxa_acertoJ}% de acerto)', fontsize=14, color='white', ha='left', va='bottom', fontweight='bold', transform=axs['pitch'].transAxes)
+    axs['pitch'].text(0.05, -0.05, f'{num_passesPJ} passes progressivos ({num_passesP90J:.2f} por 90 min.)', fontsize=12, color='#97c1e7', ha='left', va='bottom', fontweight='bold', transform=axs['pitch'].transAxes)
+
+    # Nota de rodapé
+    note_text = "@Vasco_Analytics | Dados: Opta via WhoScored"
+    note_text_2 = f'Ação progressiva: ponto final no mínimo 25% mais próximo do gol que o inicial'
+    fig.text(-0.07, 0.01, note_text, fontsize=13, color='gray', ha='left', va='center', weight='bold')
+    fig.text(-0.07, -0.015, note_text_2, fontsize=11, color='gray', ha='left', va='center')
+
+    # Alterar a cor de fundo da figura e subplots para um tom de cinza escuro
+    fig.patch.set_facecolor('#222222')  # Cor de fundo da figura
+
+    # Salvar a figura
+    fig.savefig('Mapa de passes progressivos.png', dpi=300, bbox_inches='tight', facecolor='#222222')
+
+    plt.show()
 
 
-def print_top_players_recoveries(sorted_recovery_count, top_player_recoveries, top_recovery_count, num_players=10):
-    # Imprimir o número de desarmes e interceptações de cada jogador
-    print(f'NÚMERO DE DESARMES E INTERCEPTAÇÕES DE CADA JOGADOR:')
-    print('')
-    print(f"O jogador com mais desarmes e interceptações é {top_player_recoveries} com {top_recovery_count} recuperações.")
-    print('')
-    count = 0
-    for player, recovery_count in sorted_recovery_count.items():
-        if count >= num_players:
-            break
-        print(f"{player}: {recovery_count} recuperações")
-        count += 1
-    print('')
-    print('*' * 50)
-    print('')
+def plot_progressive_dribbles(dfDribble, result_df, jogador, title):
+    # Dados do jogador
+    
+    num_CP_J = len(dfDribble[(dfDribble['player'] == jogador) & (dfDribble['progressive_dribble']) & (dfDribble['result_id'] == 1)])
+    dfDribbleJP = dfDribble[(dfDribble['player'] == jogador) & (dfDribble['progressive_dribble']) & (dfDribble['result_id'] == 1)]
+    num_conducoesP90J = result_df.loc[result_df['Jogador'] == jogador, 'Conduções Progressivas por 90 Minutos'].values[0]
+
+    # Criar o campo
+    pitch = VerticalPitch(positional=False, pitch_type='uefa', pitch_color='#222222', line_color='white', line_zorder=2)
+    fig, axs = pitch.grid(ncols=1, axis=False, figheight=10, endnote_height=0, endnote_space=0, title_height=0.01, grid_height=0.75)
+    
+    # Gráfico com conduções progressivas
+    pitch.lines(dfDribbleJP['start_x'], dfDribbleJP['start_y'], dfDribbleJP['end_x'], dfDribbleJP['end_y'], color='#ff6666',
+                comet=True, transparent=True, alpha_start=0.2, alpha_end=0.8, zorder=2, ax=axs['pitch'])
+    pitch.scatter(dfDribbleJP['end_x'], dfDribbleJP['end_y'], color='#ff6666', edgecolor='#343334', ax=axs['pitch'], s=50, lw=2, zorder=3)
+    
+    # Título
+    fig.suptitle(title, fontsize=22, fontweight='bold', color='white')
+    axs['pitch'].set_title(f'Conduções progressivas do {jogador}', fontsize=18, color='white', pad=10)
+
+    # Adicionar texto abaixo do subplot
+    axs['pitch'].text(0.05, -0.02, f'{num_CP_J} conduções progressivas ({num_conducoesP90J:.2f} por 90 min.)', fontsize=12, color='#ff6666', ha='left', va='bottom', fontweight='bold', transform=axs['pitch'].transAxes)
+
+    # Nota de rodapé
+    note_text = "@Vasco_Analytics | Dados: Opta via WhoScored"
+    note_text_2 = f'Ação progressiva: ponto final no mínimo 25% mais próximo do gol que o inicial'
+    fig.text(-0.07, 0.01, note_text, fontsize=13, color='gray', ha='left', va='center', weight='bold')
+    fig.text(-0.07, -0.015, note_text_2, fontsize=11, color='gray', ha='left', va='center')
+
+    # Alterar a cor de fundo da figura e subplots para um tom de cinza escuro
+    fig.patch.set_facecolor('#222222')  # Cor de fundo da figura
+
+    # Salvar a figura
+    fig.savefig('Mapa de conduções progressivas.png', dpi=300, bbox_inches='tight', facecolor='#222222')
+
+    plt.show()
+
+
+def plot_multiple_progressive_actions(dfPass, dfDribble, result_df, jogadores, title):
+    assert len(jogadores) == 12, "A lista de jogadores deve conter exatamente 12 jogadores."
+
+    # Criar o campo
+    pitch = Pitch(positional=False, pitch_type='uefa', pitch_color='#222222', line_color='white', line_zorder=2)
+    fig, axs = plt.subplots(nrows=3, ncols=4, figsize=(23, 18))
+    axs = axs.flatten()
+
+    for i, jogador in enumerate(jogadores):
+        # Dados do jogador
+        num_passesCJ = dfPass[(dfPass['player'] == jogador) & (dfPass['result_id'] == 1)].shape[0]
+        num_passesJ = dfPass[(dfPass['player'] == jogador)].shape[0]
+        num_passesPJ = len(dfPass[(dfPass['player'] == jogador) & (dfPass['progressive_pass']) & (dfPass['result_id'] == 1)])
+        taxa_acertoJ = round(((num_passesCJ / num_passesJ) * 100), 1)
+        dfPassJ = dfPass[(dfPass['player'] == jogador) & (dfPass['result_id'] == 1) & (~dfPass['progressive_pass'])]
+        dfPassJP = dfPass[(dfPass['player'] == jogador) & (dfPass['progressive_pass']) & (dfPass['result_id'] == 1)]
+        num_CP_J = len(dfDribble[(dfDribble['player'] == jogador) & (dfDribble['progressive_dribble']) & (dfDribble['result_id'] == 1)])
+        dfDribbleJP = dfDribble[(dfDribble['player'] == jogador) & (dfDribble['progressive_dribble']) & (dfDribble['result_id'] == 1)]
+        num_passesP90J = result_df.loc[result_df['Jogador'] == jogador, 'Passes Progressivos por 90 Minutos'].values[0]
+        num_conducoesP90J = result_df.loc[result_df['Jogador'] == jogador, 'Conduções Progressivas por 90 Minutos'].values[0]
+
+        ax = axs[i]
+        pitch.draw(ax=ax)
+
+        # Gráfico com passes progressivos
+        pitch.lines(dfPassJP['start_x'], dfPassJP['start_y'], dfPassJP['end_x'], dfPassJP['end_y'], color='#97c1e7',
+                    comet=True, transparent=True, alpha_start=0.2, alpha_end=0.8, zorder=2, ax=ax)
+        pitch.scatter(dfPassJP['end_x'], dfPassJP['end_y'], color='black', edgecolor='#97c1e7', ax=ax, s=50, lw=1, zorder=2)
+        
+        # Gráfico com conduções progressivas
+        pitch.lines(dfDribbleJP['start_x'], dfDribbleJP['start_y'], dfDribbleJP['end_x'], dfDribbleJP['end_y'], color='#ff6666',
+                    comet=True, transparent=True, alpha_start=0.2, alpha_end=0.8, zorder=2, ax=ax)
+        pitch.scatter(dfDribbleJP['end_x'], dfDribbleJP['end_y'], color='#ff6666', edgecolor='#343334', ax=ax, s=50, lw=2, zorder=3)
+
+        ax.set_title(f'{jogador}', fontsize=23, color='white', pad=10, weight='bold')
+
+        # Adicionar texto abaixo de cada subplot
+        ax.text(0.5, -0.05, f'{(num_passesP90J + num_conducoesP90J):.2f} Ações Progressivas por 90\'', fontsize=17, color='#ADD8E6', ha='center', va='center', fontweight='bold', transform=ax.transAxes)
+
+    # Título
+    fig.suptitle(title, fontsize=29, fontweight='bold', color='white', x=0.02, ha='left')
+
+    # Subtítulo colorido
+    fig.text(0.02, 0.930, "Passes Progressivos", fontsize=20, color='#97c1e7', ha='left', weight='bold')
+    fig.text(0.161, 0.930, "e", fontsize=20, color='white', ha='left', weight='bold')
+    fig.text(0.174, 0.930, "Conduções Progressivas", fontsize=20, color='#ff6666', ha='left', weight='bold')
+    fig.text(0.346, 0.930, "| Apenas jogadores com + de 900 minutos disputados", fontsize=20, color='white', ha='left', weight='bold')
+
+    # Nota de rodapé
+    note_text = "@Vasco_Analytics | Dados: Opta via WhoScored | Ação progressiva: ponto final no mínimo 25% mais próximo do gol adversário ou passe para a área"
+    fig.text(0.02, 0.01, note_text, fontsize=18, color='white', ha='left', va='center', weight='bold')
+
+    # Alterar a cor de fundo da figura e subplots para um tom de cinza escuro
+    fig.patch.set_facecolor('#222222')  # Cor de fundo da figura
+
+    # Ajustar layout
+    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+
+    # Salvar a figura
+    fig.savefig('Mapa de ações progressivas múltiplas.png', dpi=300, bbox_inches='tight', facecolor='#222222')
+
+    plt.show()
+
+
+def get_top_players(df, sort_column, players_quantity):
+    """
+    Retorna uma lista com os 12 melhores jogadores com base na coluna especificada para ordenação.
+
+    Parâmetros:
+    df (pd.DataFrame): DataFrame contendo os dados dos jogadores.
+    sort_column (str): Nome da coluna usada para ordenar os jogadores.
+
+    Retorna:
+    list: Lista contendo os nomes dos 12 melhores jogadores.
+    """
+    # Ordenar o DataFrame pela coluna especificada
+    sorted_df = df.sort_values(by=sort_column, ascending=False)
+    
+    # Obter os nomes dos 12 melhores jogadores
+    top_players = sorted_df['Jogador'].head(players_quantity).tolist()
+    
+    return top_players
